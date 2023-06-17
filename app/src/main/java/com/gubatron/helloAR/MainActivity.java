@@ -1,6 +1,7 @@
 package com.gubatron.helloAR;
 
 import android.content.pm.PackageManager;
+import android.location.Location;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.Gravity;
@@ -19,16 +20,29 @@ import com.google.ar.sceneform.rendering.Renderable;
 import com.google.ar.sceneform.ux.ArFragment;
 import com.google.ar.sceneform.ux.TransformableNode;
 
+import java.util.logging.Logger;
+
 public class MainActivity extends AppCompatActivity {
 
     private ArFragment arFragment;
+    private LocationUpdatesComponent locationUpdatesComponent;
+
+    private final static Logger LOG = Logger.getLogger(MainActivity.class.getName());
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        PermissionChecker.checkCameraPermissions(this);
+        PermissionChecker.checkLocationPermissions(this);
+
+        // gps location listener
+        locationUpdatesComponent = new LocationUpdatesComponent(this, getLocationUpdatesListener());
+
         arFragment = (ArFragment) getSupportFragmentManager().findFragmentById(R.id.ux_fragment);
+
+        // tap listener
         arFragment.setOnTapArPlaneListener(
                 (HitResult hitResult, Plane plane, MotionEvent motionEvent) -> {
                     if (plane.getType() != Plane.Type.HORIZONTAL_UPWARD_FACING) {
@@ -39,6 +53,21 @@ public class MainActivity extends AppCompatActivity {
                     Anchor anchor = hitResult.createAnchor();
                     placeObject(arFragment, anchor, Uri.parse("YourModel.glb")); //replace "YourModel.glb" with your 3D model name
                 });
+    }
+
+    private LocationUpdatesComponent.LocationUpdateListener getLocationUpdatesListener() {
+        return MainActivity.this::onLocationUpdate;
+    }
+
+    private void onLocationUpdate(Location location) {
+        // update location coordinates on the screen
+        // log GPS coordinates from Location object
+        location.getLatitude();
+        location.getLongitude();
+        location.getAltitude();
+        location.getSpeed();
+        location.getBearing();
+        LOG.info("MainActivity.onLocationUpdate: lat:" + location.getLatitude() + ", lon:" + location.getLongitude() + ", alt:" + location.getAltitude() + ", speed:" + location.getSpeed() + ", bearing:" + location.getBearing());
     }
 
     private void placeObject(ArFragment arFragment, Anchor anchor, Uri modelUri) {
@@ -77,6 +106,29 @@ public class MainActivity extends AppCompatActivity {
                 }
                 return;
             }
+            case PermissionChecker.MY_PERMISSIONS_REQUEST_LOCATION: {
+                // If request is cancelled, the result arrays are empty.
+                if (grantResults.length > 0
+                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    locationUpdatesComponent.startLocationUpdates();
+                } else {
+                    // Permission denied, disable the functionality that depends on this permission.
+                    locationUpdatesComponent.stopLocationUpdates();
+                }
+                return;
+            }
         }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        locationUpdatesComponent.startLocationUpdates();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        locationUpdatesComponent.stopLocationUpdates();
     }
 }
